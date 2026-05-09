@@ -54,6 +54,26 @@ def test_overlay_id_string():
     assert record.overlay_id == "overlay-001-test"
 
 
+@pytest.mark.parametrize(
+    "bad_overlay_id",
+    [
+        "definitely_not_an_overlay",   # no overlay- prefix
+        "overlay-",                    # missing digits and trailing token
+        "overlay-001",                 # missing trailing token
+        "overlay-001-",                # empty trailing token
+        "overlay-abc-foo",             # non-digit middle token
+        "overlay-001-FOO",             # uppercase trailing token
+        "overlay-001-foo bar",         # whitespace in trailing token
+        "overlay-001-<short-name>",    # template placeholder syntax
+    ],
+)
+def test_overlay_id_invalid_pattern_rejected(bad_overlay_id):
+    with pytest.raises(ValidationError):
+        DeploymentRecord.model_validate(
+            make_valid_record_dict(overlay_id=bad_overlay_id)
+        )
+
+
 # --- engagement_code validation ----------------------------------------
 
 

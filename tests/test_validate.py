@@ -300,11 +300,22 @@ def test_validate_root_unknown_methodology_version_flagged(control_plane):
 
 def test_validate_root_warns_when_changelog_empty(control_plane):
     control_plane.changelog_path.write_text("# Empty\n")
-    write_deployment(control_plane, make_valid_record_dict())
+    write_deployment(
+        control_plane,
+        make_valid_record_dict(methodology_version="9.9.9"),
+    )
     report = validate_root(control_plane)
     assert any(
         "no methodology versions parsed" in i.message for i in report.warnings
     )
+    # Contract: when the changelog has no parseable versions, every
+    # methodology_version is permitted (cannot validate against an
+    # absent source of truth). Lock this in so a future regression
+    # that quietly rejects all versions on empty changelog is caught.
+    assert not any(
+        "methodology_version" in (i.field_path or "") for i in report.errors
+    )
+    assert report.ok is True
 
 
 # --- validate_root: overlay -------------------------------------------
@@ -443,7 +454,7 @@ def test_validate_engagement_unknown_methodology(control_plane):
 def test_validate_engagement_unknown_overlay(control_plane):
     write_deployment(
         control_plane,
-        make_valid_record_dict(overlay_id="overlay-fake"),
+        make_valid_record_dict(overlay_id="overlay-999-fake"),
     )
     report = validate_engagement(control_plane, "test_engagement_2026")
     assert any(
@@ -488,3 +499,10 @@ def test_validate_engagement_unparseable_record_short_circuits(control_plane):
     report = validate_engagement(control_plane, "test_engagement_2026")
     # Should report the parse error and stop before workspace checks.
     assert any("system_id" in (i.field_path or "") for i in report.errors)
+    # Lock in the short-circuit: if the schema parse fails, the
+    # workspace mirror / structure checks must NOT run, otherwise a
+    # cascade of follow-on errors hides the root cause. If the early
+    # return in validate_engagement is removed, this assertion fails.
+    assert not any(
+        "workspace" in i.message.lower() for i in report.issues
+    )

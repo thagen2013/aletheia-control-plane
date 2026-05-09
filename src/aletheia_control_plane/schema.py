@@ -93,6 +93,15 @@ SystemId = Annotated[
     StringConstraints(pattern=r"^SYS-[A-Z0-9]+(-[A-Z0-9]+)+$"),
 ]
 
+# Overlay ID: overlay-<digits>-<lowercase-token>. Mirrors the regex used
+# by parse_overlay_ids() in validate.py. Constraining at the schema
+# layer means malformed IDs are rejected at parse time instead of only
+# being caught by the cross-reference check.
+OverlayId = Annotated[
+    str,
+    StringConstraints(pattern=r"^overlay-\d+-[a-z0-9-]+$"),
+]
+
 
 # --- nested models ------------------------------------------------------
 
@@ -124,7 +133,7 @@ class DeploymentRecord(BaseModel):
     methodology_version: SemverString
     jurisdictions: list[Jurisdiction] = Field(..., min_length=1)
     trust_domains: list[TrustDomain] = Field(..., min_length=1)
-    overlay_id: str | None = None
+    overlay_id: OverlayId | None = None
     last_self_test_verified: date | None = None
     last_interaction_date: date | None = None
     cadence: Cadence = Cadence.QUARTERLY
