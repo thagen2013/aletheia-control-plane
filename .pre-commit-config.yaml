@@ -1,0 +1,22 @@
+# Pre-commit hook for the Aletheia control plane.
+#
+# Runs `aletheia-cp validate` on any commit that touches deployments,
+# engagement workspaces, or methodology releases. Catches drift
+# between deployment records and workspace mirrors before it reaches
+# the repository.
+#
+# Install once with: pre-commit install
+#
+# Note: this hook requires the `aletheia-control-plane` package to be
+# installed in the active Python environment. Run
+# `pip install -e .[dev]` from the control plane root.
+
+repos:
+  - repo: local
+    hooks:
+      - id: aletheia-cp-validate
+        name: aletheia-cp validate
+        entry: aletheia-cp validate
+        language: system
+        pass_filenames: false
+        files: ^(deployments/|engagement_workspaces/|methodology_releases/).*$
