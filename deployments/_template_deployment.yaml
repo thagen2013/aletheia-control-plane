@@ -1,0 +1,110 @@
+# Hetarios deployment record - schema v0.5.0
+#
+# Copy this file to <engagement_code>.yaml when a paying engagement
+# starts. Engagement code matches the engagement workspace folder
+# name (e.g. acme_h2_2026).
+#
+# Required fields are marked REQUIRED in the comments below.
+# Optional fields can be left null or removed.
+
+# REQUIRED. Engagement-specific identifier. Lowercase, underscores
+# only, year-suffix recommended (e.g. acme_h2_2026, midland_q1_2026).
+# Must match the engagement workspace folder name.
+engagement_code: ""
+
+# REQUIRED. Client-facing legal name as it appears in the engagement
+# contract. May differ from system_name; this is the entity that
+# pays.
+client_legal_name: ""
+
+# REQUIRED. Stable identifier for the deployed system. Matches
+# system_id in the client's hetarios.config.yaml. Format:
+# SYS-<CLIENT>-<NUMBER> or any consultant-stable scheme.
+system_id: ""
+
+# REQUIRED. Human-readable name of the system under review.
+system_name: ""
+
+# REQUIRED. ISO 8601 date the deployment was first stood up at the
+# client (their first successful self-test).
+deployment_date: ""
+
+# REQUIRED. Hetarios chassis version the client is currently
+# running. Update this when the client confirms an upgrade.
+hetarios_version: ""
+
+# REQUIRED. Aletheia methodology version the client is currently
+# running. Independent of Hetarios chassis version (a chassis can
+# carry multiple methodology versions over its lifetime).
+methodology_version: ""
+
+# REQUIRED (>=1). Regulatory jurisdictions the client's system
+# claims authority under. Drives cross-jurisdiction discipline in
+# methodology grounding and remediation guidance.
+# Possible values: FDA, NMPA, CE, PMDA, MFDS, others as applicable.
+jurisdictions:
+  - ""
+
+# REQUIRED (>=1). Trust domains in scope for this engagement.
+# Possible values: audit_trail, model_validation, data_quality.
+# Domains can be added over time as engagement expands; reflect the
+# current in-scope set, not the historical maximum.
+trust_domains:
+  - ""
+
+# Methodology overlay ID, if the client has client-specific
+# invariants, failure modes, or groundings beyond the shipped
+# methodology. Most clients have none. When set, must reference an
+# entry in methodology_releases/overlay_registry.md.
+overlay_id: null
+
+# Last consultant-verified self-test date. The client may run
+# self-test more often (their cron); this records the last one the
+# consultant witnessed or was reported.
+last_self_test_verified: null
+
+# Last substantive consultant interaction (review session,
+# remediation review, methodology update push). Helps prioritize
+# attention across active engagements.
+last_interaction_date: null
+
+# Operational cadence agreed with the client. Possible values:
+# weekly, biweekly, monthly, quarterly. Hetarios does not enforce
+# this; the consultant honors it through quarterly_review_procedure
+# scheduling.
+cadence: "quarterly"
+
+# Engagement phase. Possible values:
+#   discovery   - pre-engagement discussion, no deployment yet
+#   onboarding  - initial deployment, first assessment in flight
+#   active      - regular cadence, retainer active
+#   transitioning - reduced cadence, expansion or wind-down in flight
+#   closed      - engagement ended, deployment may persist read-only
+phase: "onboarding"
+
+# Retainer tier currently in effect. Possible values:
+#   none       - one-shot engagement, no retainer
+#   foundation - 20h/month
+#   standard   - 40h/month
+#   extended   - 80h/month
+# Update when the retainer tier changes; the engagement workspace
+# carries the contract details and history.
+retainer_tier: "none"
+
+# Free-text notes for consultant-only use. Brief - one or two lines.
+# Detailed engagement notes belong in the engagement workspace, not
+# here. Use this field for cross-engagement context (e.g. "client
+# referred by AnotherClient", "primary contact transitions in Q2").
+notes: ""
+
+# Primary client contact for this engagement. The consultant's main
+# point of communication. Update when contacts change.
+primary_contact:
+  name: ""
+  role: ""
+  email: ""
+
+# Engagement workspace folder name. Should match engagement_code.
+# Stored explicitly so the registry can be read without a directory
+# convention dependency.
+workspace_path: "engagement_workspaces/<engagement_code>/"

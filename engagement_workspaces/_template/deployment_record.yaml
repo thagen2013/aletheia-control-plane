@@ -1,0 +1,36 @@
+# Engagement-side deployment record. Mirrors the canonical record in
+# deployments/<engagement_code>.yaml. Updated in the same commit when
+# deployment metadata changes.
+#
+# Why both: the deployments/ directory is the single source of truth
+# read by anyone navigating the practice. The workspace mirror lives
+# alongside the engagement's other working documents so a consultant
+# preparing for a quarterly review or reading engagement context
+# does not have to context-switch to deployments/.
+#
+# When these two files disagree, the deployments/ version is canonical
+# and this file is stale. Update both.
+
+engagement_code: ""
+client_legal_name: ""
+system_id: ""
+system_name: ""
+deployment_date: ""
+hetarios_version: ""
+methodology_version: ""
+jurisdictions:
+  - ""
+trust_domains:
+  - ""
+overlay_id: null
+last_self_test_verified: null
+last_interaction_date: null
+cadence: "quarterly"
+phase: "onboarding"
+retainer_tier: "none"
+notes: ""
+primary_contact:
+  name: ""
+  role: ""
+  email: ""
+workspace_path: "engagement_workspaces/<engagement_code>/"
