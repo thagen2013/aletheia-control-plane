@@ -18,7 +18,7 @@ from aletheia_control_plane.schema import DeploymentRecord, Phase
 from aletheia_control_plane.validate import (
     discover_deployments,
     load_deployment,
-    parse_methodology_versions,
+    parse_methodology_version_manifest,
 )
 
 
@@ -76,7 +76,9 @@ def compute_status(
     enforcement is the job of ``validate``.
     """
 
-    known_versions = parse_methodology_versions(cp.changelog_path)
+    known_versions = set(
+        parse_methodology_version_manifest(cp.versions_manifest_path).keys()
+    )
     current_version = determine_current_version(known_versions)
     current_tuple = (
         _semver_tuple(current_version) if current_version is not None else None

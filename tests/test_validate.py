@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from aletheia_control_plane.schema import MethodologyVersionStatus
 from aletheia_control_plane.validate import (
     Issue,
     Severity,
@@ -15,7 +16,7 @@ from aletheia_control_plane.validate import (
     discover_engagement_workspaces,
     load_deployment,
     load_yaml,
-    parse_methodology_versions,
+    parse_methodology_version_manifest,
     parse_overlay_ids,
     validate_engagement,
     validate_root,
@@ -104,26 +105,103 @@ def test_load_yaml_non_mapping_raises(tmp_path):
 # --- parsers ----------------------------------------------------------
 
 
-def test_parse_methodology_versions(control_plane):
-    """The fixture mirrors the real changelog: only the current shipped
-    version gets a dedicated heading; earlier versions live in a prose
-    ``## Earlier versions`` section and are not parsed out individually."""
+def test_parse_methodology_version_manifest_happy_path(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text(
+        "versions:\n"
+        "  - version: '0.1.2'\n"
+        "    status: 'development-tier'\n"
+        "    notes: 'pre-release dev'\n"
+        "  - version: '0.4.0'\n"
+        "    status: 'development-tier'\n"
+        "  - version: '0.5.0'\n"
+        "    status: 'engagement-ready'\n"
+        "    notes: 'First engagement-ready release.'\n",
+        encoding="utf-8",
+    )
+    entries = parse_methodology_version_manifest(manifest)
+    assert set(entries.keys()) == {"0.1.2", "0.4.0", "0.5.0"}
+    assert (
+        entries["0.5.0"].status is MethodologyVersionStatus.ENGAGEMENT_READY
+    )
+    assert (
+        entries["0.4.0"].status is MethodologyVersionStatus.DEVELOPMENT_TIER
+    )
+    assert entries["0.4.0"].notes == ""
 
-    versions = parse_methodology_versions(control_plane.changelog_path)
-    assert versions == {"0.5.0"}
+
+def test_parse_methodology_version_manifest_normalizes_v_prefix(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text(
+        "versions:\n"
+        "  - version: 'v0.5.0'\n"
+        "    status: 'engagement-ready'\n",
+        encoding="utf-8",
+    )
+    entries = parse_methodology_version_manifest(manifest)
+    assert "0.5.0" in entries
 
 
-def test_parse_methodology_versions_missing_file(tmp_path):
-    versions = parse_methodology_versions(tmp_path / "nonexistent.md")
-    assert versions == set()
+def test_parse_methodology_version_manifest_missing_file(tmp_path):
+    entries = parse_methodology_version_manifest(tmp_path / "nope.yaml")
+    assert entries == {}
 
 
-def test_parse_methodology_versions_handles_v_prefix(tmp_path):
-    p = tmp_path / "changelog.md"
-    p.write_text("## v1.2.3 — release\n## 0.4.0 — earlier\n")
-    versions = parse_methodology_versions(p)
-    assert "1.2.3" in versions
-    assert "0.4.0" in versions
+def test_parse_methodology_version_manifest_empty_file(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text("", encoding="utf-8")
+    entries = parse_methodology_version_manifest(manifest)
+    assert entries == {}
+
+
+def test_parse_methodology_version_manifest_malformed_yaml(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text("versions:\n  - version: [unclosed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="versions.yaml"):
+        parse_methodology_version_manifest(manifest)
+
+
+def test_parse_methodology_version_manifest_top_level_not_mapping(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text("- 0.5.0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="mapping"):
+        parse_methodology_version_manifest(manifest)
+
+
+def test_parse_methodology_version_manifest_versions_not_list(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text("versions: 'oops-a-string'\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a list"):
+        parse_methodology_version_manifest(manifest)
+
+
+def test_parse_methodology_version_manifest_missing_versions_key(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text("other: stuff\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="versions"):
+        parse_methodology_version_manifest(manifest)
+
+
+def test_parse_methodology_version_manifest_bad_status(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text(
+        "versions:\n  - version: '0.5.0'\n    status: 'invented-status'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="invented-status|status"):
+        parse_methodology_version_manifest(manifest)
+
+
+def test_parse_methodology_version_manifest_duplicate_version(tmp_path):
+    manifest = tmp_path / "versions.yaml"
+    manifest.write_text(
+        "versions:\n"
+        "  - version: '0.5.0'\n    status: 'engagement-ready'\n"
+        "  - version: '0.5.0'\n    status: 'deprecated'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate"):
+        parse_methodology_version_manifest(manifest)
 
 
 def test_parse_overlay_ids(control_plane_with_overlay):
@@ -301,24 +379,63 @@ def test_validate_root_unknown_methodology_version_flagged(control_plane):
     )
 
 
-def test_validate_root_warns_when_changelog_empty(control_plane):
-    control_plane.changelog_path.write_text("# Empty\n")
+def test_validate_root_warns_when_manifest_missing(control_plane):
+    """When the versions manifest yields no known versions, validate
+    must warn and skip per-deployment membership checks (cannot
+    validate against an absent source of truth)."""
+
+    control_plane.versions_manifest_path.unlink()
     write_deployment(
         control_plane,
         make_valid_record_dict(methodology_version="9.9.9"),
     )
     report = validate_root(control_plane)
     assert any(
-        "no methodology versions parsed" in i.message for i in report.warnings
+        "no methodology versions" in i.message for i in report.warnings
     )
-    # Contract: when the changelog has no parseable versions, every
-    # methodology_version is permitted (cannot validate against an
-    # absent source of truth). Lock this in so a future regression
-    # that quietly rejects all versions on empty changelog is caught.
     assert not any(
         "methodology_version" in (i.field_path or "") for i in report.errors
     )
     assert report.ok is True
+
+
+def test_validate_root_accepts_manifest_listed_development_tier_version(
+    control_plane,
+):
+    """A deployment pinned to a development-tier version that is
+    explicitly listed in the manifest must validate cleanly, even
+    though the changelog narrative collapses earlier versions."""
+
+    write_deployment(
+        control_plane,
+        make_valid_record_dict(methodology_version="0.4.0"),
+    )
+    report = validate_root(control_plane)
+    assert not any(
+        "methodology_version" in (i.field_path or "") for i in report.errors
+    )
+
+
+def test_validate_engagement_accepts_manifest_listed_version(control_plane):
+    write_deployment(
+        control_plane,
+        make_valid_record_dict(methodology_version="0.4.0"),
+    )
+    report = validate_engagement(control_plane, "test_engagement_2026")
+    assert not any(
+        "methodology_version" in (i.field_path or "") for i in report.errors
+    )
+
+
+def test_validate_engagement_rejects_unlisted_version(control_plane):
+    write_deployment(
+        control_plane,
+        make_valid_record_dict(methodology_version="9.9.9"),
+    )
+    report = validate_engagement(control_plane, "test_engagement_2026")
+    assert any(
+        "methodology_version" in (i.field_path or "") for i in report.errors
+    )
 
 
 # --- validate_root: overlay -------------------------------------------

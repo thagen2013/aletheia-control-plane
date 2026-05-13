@@ -65,7 +65,7 @@ def test_cli_validate_missing_engagement(control_plane):
 def test_cli_validate_warning_only(control_plane):
     """A warning without errors should exit 0 but still print warning text."""
 
-    control_plane.changelog_path.write_text("# Empty changelog\n")
+    control_plane.versions_manifest_path.unlink()
     runner = CliRunner()
     result = runner.invoke(cli, ["--root", str(control_plane.root), "validate"])
     assert result.exit_code == 0
@@ -173,14 +173,17 @@ def test_cli_methodology_status_current(control_plane):
     assert "test_engagement_2026" in result.output
 
 
-def test_cli_methodology_status_warns_on_empty_changelog(control_plane):
-    control_plane.changelog_path.write_text("# Empty changelog\n")
+def test_cli_methodology_status_warns_on_missing_manifest(control_plane):
+    """If the versions manifest is missing, the command must warn so the
+    operator knows the source of truth is gone."""
+
+    control_plane.versions_manifest_path.unlink()
     write_deployment(control_plane, make_valid_record_dict())
     runner = CliRunner()
     result = runner.invoke(
         cli, ["--root", str(control_plane.root), "methodology-status"]
     )
-    assert "no methodology versions parsed" in result.output
+    assert "no methodology versions" in result.output
 
 
 def test_cli_methodology_status_lists_stale(control_plane):

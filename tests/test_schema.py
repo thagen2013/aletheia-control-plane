@@ -11,6 +11,8 @@ from aletheia_control_plane.schema import (
     Cadence,
     DeploymentRecord,
     Jurisdiction,
+    MethodologyVersionEntry,
+    MethodologyVersionStatus,
     Phase,
     PrimaryContact,
     RetainerTier,
@@ -302,3 +304,64 @@ def test_is_template_engagement_code():
     assert is_template_engagement_code("<engagement_code>") is True
     assert is_template_engagement_code("real_code_2026") is False
     assert is_template_engagement_code("anything") is False
+
+
+# --- MethodologyVersionEntry ------------------------------------------
+
+
+def test_methodology_version_entry_happy_path():
+    entry = MethodologyVersionEntry.model_validate(
+        {
+            "version": "0.5.0",
+            "status": "engagement-ready",
+            "notes": "First engagement-ready release.",
+        }
+    )
+    assert entry.version == "0.5.0"
+    assert entry.status is MethodologyVersionStatus.ENGAGEMENT_READY
+    assert entry.notes == "First engagement-ready release."
+
+
+def test_methodology_version_entry_notes_defaults_empty():
+    entry = MethodologyVersionEntry.model_validate(
+        {"version": "0.5.0", "status": "engagement-ready"}
+    )
+    assert entry.notes == ""
+
+
+def test_methodology_version_entry_rejects_bad_semver():
+    with pytest.raises(ValidationError):
+        MethodologyVersionEntry.model_validate(
+            {"version": "not-a-version", "status": "engagement-ready"}
+        )
+
+
+def test_methodology_version_entry_rejects_empty_version():
+    with pytest.raises(ValidationError):
+        MethodologyVersionEntry.model_validate(
+            {"version": "", "status": "engagement-ready"}
+        )
+
+
+def test_methodology_version_entry_rejects_bad_status():
+    with pytest.raises(ValidationError):
+        MethodologyVersionEntry.model_validate(
+            {"version": "0.5.0", "status": "not-a-status"}
+        )
+
+
+def test_methodology_version_entry_rejects_missing_version():
+    with pytest.raises(ValidationError):
+        MethodologyVersionEntry.model_validate({"status": "engagement-ready"})
+
+
+def test_methodology_version_entry_rejects_missing_status():
+    with pytest.raises(ValidationError):
+        MethodologyVersionEntry.model_validate({"version": "0.5.0"})
+
+
+def test_methodology_version_entry_accepts_v_prefix():
+    entry = MethodologyVersionEntry.model_validate(
+        {"version": "v0.5.0", "status": "engagement-ready"}
+    )
+    assert entry.version == "v0.5.0"

@@ -69,6 +69,18 @@ class RetainerTier(str, Enum):
     EXTENDED = "extended"
 
 
+class MethodologyVersionStatus(str, Enum):
+    """Lifecycle status of a methodology version.
+
+    The status communicates whether a deployment running this version
+    is in a supported, pre-engagement-ready, or deprecated posture.
+    """
+
+    DEVELOPMENT_TIER = "development-tier"
+    ENGAGEMENT_READY = "engagement-ready"
+    DEPRECATED = "deprecated"
+
+
 # --- field constraints --------------------------------------------------
 
 
@@ -182,6 +194,23 @@ class DeploymentRecord(BaseModel):
                 "last_self_test_verified is earlier than deployment_date"
             )
         return self
+
+
+class MethodologyVersionEntry(BaseModel):
+    """One entry in the methodology versions manifest.
+
+    The manifest (``methodology_releases/versions.yaml``) is the
+    machine-readable source of truth for which methodology versions
+    have shipped. The narrative ``changelog.md`` documents
+    engagement-ready releases; the manifest also records
+    development-tier versions that pre-date the first engagement-ready
+    release. ``validate`` consumes the manifest to decide whether a
+    deployment's ``methodology_version`` is a known shipped version.
+    """
+
+    version: SemverString
+    status: MethodologyVersionStatus
+    notes: str = ""
 
 
 def is_template_engagement_code(code: str) -> bool:
