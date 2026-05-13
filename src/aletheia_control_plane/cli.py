@@ -170,10 +170,22 @@ def methodology_status(cp) -> None:
     """Show methodology version status across all engagements."""
 
     console = Console()
-    entries, current, known = compute_status(cp)
+    entries, current, known, parse_errors = compute_status(cp)
+
+    if parse_errors:
+        console.print(
+            f"[red]{len(parse_errors)} malformed deployment(s):[/red]"
+        )
+        for path in parse_errors:
+            console.print(f"  - {path}")
+        console.print(
+            "  (run `aletheia-cp validate` for details; "
+            "these are excluded from the status table below)"
+        )
 
     if not entries:
-        console.print("[yellow]no engagements found[/yellow]")
+        if not parse_errors:
+            console.print("[yellow]no engagements found[/yellow]")
         return
 
     if not known:

@@ -3,7 +3,9 @@
 The fixture strategy: build a fresh, minimal control plane root in a
 tmp_path for each test that needs one. The root has the four marker
 directories, the deployment template, the workspace template, the
-methodology changelog with one version (0.5.0), and an empty overlay
+methodology changelog (single ``## v0.5.0`` heading plus a prose
+``## Earlier versions`` section, mirroring the real repo's
+``methodology_releases/changelog.md`` layout), and an empty overlay
 registry.
 
 This keeps tests isolated from one another and from any control plane
@@ -89,9 +91,11 @@ _CHANGELOG_TEXT = dedent(
 
     Test methodology release.
 
-    ## v0.4.0 — Earlier test version
+    ## Earlier versions
 
-    Earlier test methodology release.
+    Earlier versions (v0.1.2 through v0.4.0) shipped during the
+    methodology-development phase before the first engagement-ready
+    release.
     """
 ).lstrip()
 

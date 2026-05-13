@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from textwrap import dedent
+
 import pytest
 from rich.console import Console
 
@@ -13,6 +15,23 @@ from aletheia_control_plane.methodology_status import (
 )
 from aletheia_control_plane.schema import Phase
 from tests.conftest import make_valid_record_dict, write_deployment
+
+
+_REAL_SHAPE_CHANGELOG = dedent(
+    """
+    # Methodology Changelog
+
+    ## v0.5.0 (current shipped) — Test fixture for real shape
+
+    Test methodology release.
+
+    ## Earlier versions
+
+    Earlier versions (v0.1.2 through v0.4.0) shipped during the
+    methodology-development phase before the first engagement-ready
+    release.
+    """
+).lstrip()
 
 
 # --- determine_current_version ---------------------------------------
@@ -52,10 +71,11 @@ def test_determine_current_version_with_prerelease_treated_as_base():
 
 
 def test_compute_status_no_engagements(control_plane):
-    entries, current, known = compute_status(control_plane)
+    entries, current, known, parse_errors = compute_status(control_plane)
     assert entries == []
     assert current == "0.5.0"
-    assert known == {"0.5.0", "0.4.0"}
+    assert known == {"0.5.0"}
+    assert parse_errors == []
 
 
 # --- compute_status: with engagements --------------------------------
@@ -63,7 +83,7 @@ def test_compute_status_no_engagements(control_plane):
 
 def test_compute_status_current(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.5.0"))
-    entries, current, _ = compute_status(control_plane)
+    entries, current, _, _ = compute_status(control_plane)
     assert len(entries) == 1
     assert entries[0].is_current is True
     assert entries[0].is_unknown is False
@@ -72,29 +92,72 @@ def test_compute_status_current(control_plane):
 
 def test_compute_status_behind(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.4.0"))
-    entries, current, _ = compute_status(control_plane)
+    entries, current, _, _ = compute_status(control_plane)
     assert entries[0].is_current is False
     assert entries[0].is_unknown is False
 
 
 def test_compute_status_unknown_version(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="9.9.9"))
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     assert entries[0].is_unknown is True
 
 
 def test_compute_status_skips_parse_errors(control_plane):
     bad = make_valid_record_dict(system_id="invalid")
     write_deployment(control_plane, bad, create_workspace=False)
-    entries, _, _ = compute_status(control_plane)
+    result = compute_status(control_plane)
+    entries = result[0]
     assert entries == []
+
+
+def test_compute_status_returns_parse_errors(control_plane):
+    """Malformed deployments must be reported, not silently dropped."""
+
+    bad = make_valid_record_dict(system_id="invalid")
+    write_deployment(control_plane, bad, create_workspace=False)
+    *_, parse_errors = compute_status(control_plane)
+    assert len(parse_errors) == 1
+
+
+def test_compute_status_behind_with_real_shape_changelog(control_plane):
+    """A 0.4.0 deployment must be classified 'behind', not 'unknown',
+    against a changelog whose earlier versions live in a prose section
+    (matching the real repo's changelog.md layout).
+    """
+
+    control_plane.changelog_path.write_text(
+        _REAL_SHAPE_CHANGELOG, encoding="utf-8"
+    )
+    write_deployment(
+        control_plane, make_valid_record_dict(methodology_version="0.4.0")
+    )
+    entries, current, _, _ = compute_status(control_plane)
+    assert current == "0.5.0"
+    assert len(entries) == 1
+    assert entries[0].is_unknown is False
+    assert entries[0].is_current is False
+
+
+def test_compute_status_ahead_of_current_is_unknown(control_plane):
+    """A deployment ahead of the current shipped version is suspect
+    (likely typo or unreleased) and stays 'unknown'."""
+
+    control_plane.changelog_path.write_text(
+        _REAL_SHAPE_CHANGELOG, encoding="utf-8"
+    )
+    write_deployment(
+        control_plane, make_valid_record_dict(methodology_version="9.9.9")
+    )
+    entries, _, _, _ = compute_status(control_plane)
+    assert entries[0].is_unknown is True
 
 
 def test_compute_status_v_prefix_normalized(control_plane):
     write_deployment(
         control_plane, make_valid_record_dict(methodology_version="v0.5.0")
     )
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     assert entries[0].is_current is True
 
 
@@ -103,20 +166,20 @@ def test_compute_status_v_prefix_normalized(control_plane):
 
 def test_find_stale_returns_behind_engagements(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.4.0"))
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     stale = find_stale_engagements(entries)
     assert len(stale) == 1
 
 
 def test_find_stale_excludes_current(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.5.0"))
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     assert find_stale_engagements(entries) == []
 
 
 def test_find_stale_excludes_unknown_version(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="9.9.9"))
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     # Unknown versions are surfaced separately, not as 'stale'
     assert find_stale_engagements(entries) == []
 
@@ -126,7 +189,7 @@ def test_find_stale_excludes_closed(control_plane):
         control_plane,
         make_valid_record_dict(methodology_version="0.4.0", phase="closed"),
     )
-    entries, _, _ = compute_status(control_plane)
+    entries, _, _, _ = compute_status(control_plane)
     assert find_stale_engagements(entries) == []
 
 
@@ -140,7 +203,7 @@ def test_render_status_table_no_entries():
 
 def test_render_status_table_with_console(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.5.0"))
-    entries, current, _ = compute_status(control_plane)
+    entries, current, _, _ = compute_status(control_plane)
     console = Console(record=True, width=200)
     render_status_table(entries, current, console=console)
     output = console.export_text()
@@ -150,7 +213,7 @@ def test_render_status_table_with_console(control_plane):
 
 def test_render_status_table_unknown_version(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="9.9.9"))
-    entries, current, _ = compute_status(control_plane)
+    entries, current, _, _ = compute_status(control_plane)
     console = Console(record=True, width=200)
     render_status_table(entries, current, console=console)
     output = console.export_text()
@@ -159,7 +222,7 @@ def test_render_status_table_unknown_version(control_plane):
 
 def test_render_status_table_behind(control_plane):
     write_deployment(control_plane, make_valid_record_dict(methodology_version="0.4.0"))
-    entries, current, _ = compute_status(control_plane)
+    entries, current, _, _ = compute_status(control_plane)
     console = Console(record=True, width=200)
     render_status_table(entries, current, console=console)
     output = console.export_text()

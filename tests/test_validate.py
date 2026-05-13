@@ -105,9 +105,12 @@ def test_load_yaml_non_mapping_raises(tmp_path):
 
 
 def test_parse_methodology_versions(control_plane):
+    """The fixture mirrors the real changelog: only the current shipped
+    version gets a dedicated heading; earlier versions live in a prose
+    ``## Earlier versions`` section and are not parsed out individually."""
+
     versions = parse_methodology_versions(control_plane.changelog_path)
-    assert "0.5.0" in versions
-    assert "0.4.0" in versions
+    assert versions == {"0.5.0"}
 
 
 def test_parse_methodology_versions_missing_file(tmp_path):
