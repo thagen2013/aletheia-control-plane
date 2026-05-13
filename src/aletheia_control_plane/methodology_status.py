@@ -60,25 +60,40 @@ class MethodologyStatusEntry:
 
 def compute_status(
     cp: ControlPlaneRoot,
-) -> tuple[list[MethodologyStatusEntry], str | None, set[str]]:
+) -> tuple[list[MethodologyStatusEntry], str | None, set[str], list[Path]]:
     """Compute methodology status for every engagement.
 
-    Returns a triple of (entries, current_version, known_versions).
+    Returns ``(entries, current_version, known_versions, parse_errors)``
+    where ``parse_errors`` lists deployment file paths that could not be
+    loaded so the caller can surface a fleet-broken state to the operator
+    rather than treating it as an empty fleet.
+
+    Classification of ``is_unknown`` uses semver ordering against the
+    current shipped version, not membership in ``known_versions``. A
+    deployment pinned to a previously-shipped version whose detailed
+    changelog entry has been collapsed into a prose ``## Earlier versions``
+    section is still classified as ``behind``. Membership-based catalog
+    enforcement is the job of ``validate``.
     """
 
     known_versions = parse_methodology_versions(cp.changelog_path)
     current_version = determine_current_version(known_versions)
+    current_tuple = (
+        _semver_tuple(current_version) if current_version is not None else None
+    )
 
     entries: list[MethodologyStatusEntry] = []
+    parse_errors: list[Path] = []
     for path in discover_deployments(cp):
         record, _ = load_deployment(path)
         if record is None:
+            parse_errors.append(path)
             continue
         deployed = record.methodology_version.removeprefix("v")
-        is_unknown = bool(known_versions) and deployed not in known_versions
         is_current = (
             current_version is not None and deployed == current_version
         )
+        is_unknown = _classify_unknown(deployed, current_tuple, is_current)
         entries.append(
             MethodologyStatusEntry(
                 engagement_code=record.engagement_code,
@@ -90,7 +105,28 @@ def compute_status(
                 is_unknown=is_unknown,
             )
         )
-    return entries, current_version, known_versions
+    return entries, current_version, known_versions, parse_errors
+
+
+def _classify_unknown(
+    deployed: str,
+    current_tuple: tuple[int, int, int] | None,
+    is_current: bool,
+) -> bool:
+    """Return True when the deployed version cannot be safely classified.
+
+    ``unknown`` covers: no current version available (no changelog), or
+    deployed version ahead of the current shipped version (suspect typo
+    or unreleased build). A deployment older than current is NOT
+    unknown — it is ``behind``. Schema enforces semver shape, so
+    ``deployed`` is always parseable here.
+    """
+
+    if is_current:
+        return False
+    if current_tuple is None:
+        return True
+    return _semver_tuple(deployed) > current_tuple
 
 
 def render_status_table(

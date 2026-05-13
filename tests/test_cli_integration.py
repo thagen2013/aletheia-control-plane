@@ -196,6 +196,23 @@ def test_cli_methodology_status_lists_stale(control_plane):
     assert "test_engagement_2026" in result.output
 
 
+def test_cli_methodology_status_surfaces_parse_errors(control_plane):
+    """When all deployments fail to parse, the command must NOT print the
+    same 'no engagements found' it prints for a truly empty fleet."""
+
+    bad = make_valid_record_dict(system_id="invalid")
+    write_deployment(control_plane, bad, create_workspace=False)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["--root", str(control_plane.root), "methodology-status"],
+        env={"COLUMNS": "200"},
+    )
+    assert result.exit_code == 0
+    assert "no engagements found" not in result.output
+    assert "1 malformed deployment" in result.output
+
+
 def test_cli_prep_review(control_plane):
     write_deployment(control_plane, make_valid_record_dict())
     runner = CliRunner()
