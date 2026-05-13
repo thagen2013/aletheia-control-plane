@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from textwrap import dedent
-
 import pytest
 from rich.console import Console
 
@@ -15,23 +13,6 @@ from aletheia_control_plane.methodology_status import (
 )
 from aletheia_control_plane.schema import Phase
 from tests.conftest import make_valid_record_dict, write_deployment
-
-
-_REAL_SHAPE_CHANGELOG = dedent(
-    """
-    # Methodology Changelog
-
-    ## v0.5.0 (current shipped) — Test fixture for real shape
-
-    Test methodology release.
-
-    ## Earlier versions
-
-    Earlier versions (v0.1.2 through v0.4.0) shipped during the
-    methodology-development phase before the first engagement-ready
-    release.
-    """
-).lstrip()
 
 
 # --- determine_current_version ---------------------------------------
@@ -74,7 +55,7 @@ def test_compute_status_no_engagements(control_plane):
     entries, current, known, parse_errors = compute_status(control_plane)
     assert entries == []
     assert current == "0.5.0"
-    assert known == {"0.5.0"}
+    assert known == {"0.1.2", "0.4.0", "0.5.0"}
     assert parse_errors == []
 
 
@@ -120,32 +101,10 @@ def test_compute_status_returns_parse_errors(control_plane):
     assert len(parse_errors) == 1
 
 
-def test_compute_status_behind_with_real_shape_changelog(control_plane):
-    """A 0.4.0 deployment must be classified 'behind', not 'unknown',
-    against a changelog whose earlier versions live in a prose section
-    (matching the real repo's changelog.md layout).
-    """
-
-    control_plane.changelog_path.write_text(
-        _REAL_SHAPE_CHANGELOG, encoding="utf-8"
-    )
-    write_deployment(
-        control_plane, make_valid_record_dict(methodology_version="0.4.0")
-    )
-    entries, current, _, _ = compute_status(control_plane)
-    assert current == "0.5.0"
-    assert len(entries) == 1
-    assert entries[0].is_unknown is False
-    assert entries[0].is_current is False
-
-
 def test_compute_status_ahead_of_current_is_unknown(control_plane):
     """A deployment ahead of the current shipped version is suspect
     (likely typo or unreleased) and stays 'unknown'."""
 
-    control_plane.changelog_path.write_text(
-        _REAL_SHAPE_CHANGELOG, encoding="utf-8"
-    )
     write_deployment(
         control_plane, make_valid_record_dict(methodology_version="9.9.9")
     )

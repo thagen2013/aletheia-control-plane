@@ -19,7 +19,8 @@ is the *consultant's* record of:
 
 | File | Purpose |
 |---|---|
-| `changelog.md` | Methodology version history with what changed in each version |
+| `changelog.md` | Methodology version history with what changed in each version (operator narrative) |
+| `versions.yaml` | Machine-readable manifest of every shipped version + status. The source of truth `aletheia-cp validate` reads. |
 | `overlay_registry.md` | Client-specific KB overlays (most clients have none) |
 | `release_procedure.md` | The consultant procedure for shipping a methodology release |
 

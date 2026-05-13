@@ -100,6 +100,22 @@ _CHANGELOG_TEXT = dedent(
 ).lstrip()
 
 
+_VERSIONS_MANIFEST_TEXT = dedent(
+    """
+    versions:
+      - version: "0.1.2"
+        status: "development-tier"
+        notes: "Pre-engagement-ready development build."
+      - version: "0.4.0"
+        status: "development-tier"
+        notes: "Final pre-engagement-ready development build."
+      - version: "0.5.0"
+        status: "engagement-ready"
+        notes: "First engagement-ready release (test fixture)."
+    """
+).lstrip()
+
+
 _OVERLAY_REGISTRY_TEXT = dedent(
     """
     # Methodology Overlay Registry
@@ -172,6 +188,9 @@ def control_plane(tmp_path: Path) -> ControlPlaneRoot:
     # Methodology releases.
     (root / "methodology_releases" / "changelog.md").write_text(
         _CHANGELOG_TEXT, encoding="utf-8"
+    )
+    (root / "methodology_releases" / "versions.yaml").write_text(
+        _VERSIONS_MANIFEST_TEXT, encoding="utf-8"
     )
     (root / "methodology_releases" / "overlay_registry.md").write_text(
         _OVERLAY_REGISTRY_TEXT, encoding="utf-8"

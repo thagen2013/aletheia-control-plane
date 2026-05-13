@@ -22,13 +22,21 @@ chassis-only updates (those follow `deployment_change_procedure.md`).
 3. **Update `methodology_releases/changelog.md`** with a new entry
    describing what's new, engagement implications, open gaps, and
    migration notes.
-4. **Re-validate all active overlays** against the new methodology
+4. **Update `methodology_releases/versions.yaml`** with a new entry
+   for the version. Add fields: `version` (semver string),
+   `status` (`engagement-ready` for normal releases,
+   `development-tier` for pre-release builds), and `notes` (one-line
+   summary). The manifest is what `aletheia-cp validate` consumes;
+   forgetting this step will cause every deployment pinned to the
+   new version to fail validation.
+5. **Re-validate all active overlays** against the new methodology
    per `overlay_registry.md` re-validation procedure. Update overlay
    registry entries with the re-validation timestamp.
 
 At end of Phase 1: the engine repo has a tagged release; the
-consultant control plane has a changelog entry; overlays are
-re-validated. No client deployments have changed yet.
+consultant control plane has a changelog entry and a versions.yaml
+manifest entry; overlays are re-validated. No client deployments
+have changed yet.
 
 ## Phase 2: Per-client rollout decision
 

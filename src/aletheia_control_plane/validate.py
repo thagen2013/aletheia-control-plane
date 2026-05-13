@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from aletheia_control_plane.paths import ControlPlaneRoot
 from aletheia_control_plane.schema import (
     DeploymentRecord,
+    MethodologyVersionEntry,
     is_template_engagement_code,
 )
 
@@ -131,26 +132,62 @@ def discover_engagement_workspaces(cp: ControlPlaneRoot) -> list[Path]:
     )
 
 
-_VERSION_HEADER_RE = re.compile(r"^##\s+(v?\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)\b")
+def parse_methodology_version_manifest(
+    manifest_path: Path,
+) -> dict[str, MethodologyVersionEntry]:
+    """Parse the methodology versions manifest.
 
+    The manifest at ``methodology_releases/versions.yaml`` is the
+    machine-readable source of truth for which methodology versions
+    have shipped (engagement-ready, development-tier, or deprecated).
+    Validate consumes the keys to decide whether a deployment's
+    ``methodology_version`` is a known version; ``methodology-status``
+    consumes it for the empty-source warning.
 
-def parse_methodology_versions(changelog_path: Path) -> set[str]:
-    """Parse methodology versions from the changelog.
-
-    Looks for lines like ``## v0.5.0 ...`` or ``## 0.5.0 ...``. Returns
-    versions normalized without leading ``v``.
+    Returns a dict keyed by version string (normalized without the
+    leading ``v``). Returns an empty dict if the file does not exist
+    so callers can treat that as "no source of truth available."
+    Raises :class:`ValueError` on malformed YAML or invalid schema.
     """
 
-    if not changelog_path.is_file():
-        return set()
-    versions: set[str] = set()
-    for line in changelog_path.read_text(encoding="utf-8").splitlines():
-        match = _VERSION_HEADER_RE.match(line)
-        if match:
-            v = match.group(1)
-            v = v.removeprefix("v")
-            versions.add(v)
-    return versions
+    if not manifest_path.is_file():
+        return {}
+    try:
+        data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValueError(f"{manifest_path}: malformed YAML: {exc}") from exc
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"{manifest_path}: top-level YAML value is not a mapping"
+        )
+    if "versions" not in data:
+        raise ValueError(
+            f"{manifest_path}: missing required key 'versions'"
+        )
+    raw_entries = data["versions"]
+    if not isinstance(raw_entries, list):
+        raise ValueError(
+            f"{manifest_path}: 'versions' must be a list"
+        )
+
+    entries: dict[str, MethodologyVersionEntry] = {}
+    for raw in raw_entries:
+        try:
+            entry = MethodologyVersionEntry.model_validate(raw)
+        except ValidationError as exc:
+            raise ValueError(
+                f"{manifest_path}: invalid version entry {raw!r}: {exc}"
+            ) from exc
+        key = entry.version.removeprefix("v")
+        if key in entries:
+            raise ValueError(
+                f"{manifest_path}: duplicate version {key!r}"
+            )
+        entries[key] = entry
+    return entries
 
 
 _OVERLAY_HEADER_RE = re.compile(r"^###\s+(overlay-\d+-[a-z0-9-]+)")
@@ -296,13 +333,15 @@ def validate_root(cp: ControlPlaneRoot) -> ValidationReport:
 
     report = ValidationReport()
 
-    methodology_versions = parse_methodology_versions(cp.changelog_path)
+    methodology_versions = set(
+        parse_methodology_version_manifest(cp.versions_manifest_path).keys()
+    )
     if not methodology_versions:
         report.add(
             Severity.WARNING,
-            "no methodology versions parsed from changelog "
-            "(any deployment will fail methodology_version validation)",
-            file_path=cp.changelog_path,
+            "no methodology versions found in versions.yaml manifest "
+            "(skipping methodology_version membership check)",
+            file_path=cp.versions_manifest_path,
         )
 
     overlay_ids = parse_overlay_ids(cp.overlay_registry_path)
@@ -347,13 +386,13 @@ def validate_root(cp: ControlPlaneRoot) -> ValidationReport:
                 field_path="engagement_code",
             )
 
-        # Methodology version must exist in changelog.
+        # Methodology version must exist in the versions manifest.
         normalized_version = record.methodology_version.removeprefix("v")
         if methodology_versions and normalized_version not in methodology_versions:
             report.add(
                 Severity.ERROR,
                 f"methodology_version {record.methodology_version!r} does not "
-                f"appear in {cp.changelog_path.name} "
+                f"appear in {cp.versions_manifest_path.name} "
                 f"(known versions: {sorted(methodology_versions)})",
                 file_path=deployment_path,
                 field_path="methodology_version",
@@ -421,7 +460,9 @@ def validate_engagement(
     if record is None:
         return report
 
-    methodology_versions = parse_methodology_versions(cp.changelog_path)
+    methodology_versions = set(
+        parse_methodology_version_manifest(cp.versions_manifest_path).keys()
+    )
     overlay_ids = parse_overlay_ids(cp.overlay_registry_path)
 
     normalized_version = record.methodology_version.removeprefix("v")
@@ -429,7 +470,7 @@ def validate_engagement(
         report.add(
             Severity.ERROR,
             f"methodology_version {record.methodology_version!r} does not "
-            f"appear in {cp.changelog_path.name}",
+            f"appear in {cp.versions_manifest_path.name}",
             file_path=deployment_path,
             field_path="methodology_version",
         )

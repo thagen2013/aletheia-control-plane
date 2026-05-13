@@ -190,8 +190,8 @@ def methodology_status(cp) -> None:
 
     if not known:
         console.print(
-            "[yellow]warning:[/yellow] no methodology versions parsed "
-            f"from {cp.changelog_path.name}"
+            "[yellow]warning:[/yellow] no methodology versions found "
+            f"in {cp.versions_manifest_path.name}"
         )
 
     render_status_table(entries, current, console=console)

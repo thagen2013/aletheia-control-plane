@@ -1,0 +1,36 @@
+# Methodology Versions Manifest
+#
+# Machine-readable source of truth for which methodology versions have
+# shipped. `aletheia-cp validate` consumes this file to decide whether
+# a deployment's `methodology_version` is a known shipped version;
+# `aletheia-cp methodology-status` consumes the version list for the
+# empty-source warning. The narrative changelog (`changelog.md`) is
+# the operator-facing per-release write-up; this manifest is what
+# tooling reads.
+#
+# When a new methodology version ships, add an entry below. See
+# `release_procedure.md` Phase 1.
+#
+# Statuses:
+#   - engagement-ready: production-grade methodology release, suitable
+#     for paying client deployments.
+#   - development-tier: pre-engagement-ready build. Deployments on this
+#     version should be upgraded before the next paying engagement.
+#   - deprecated: previously shipped but no longer supported.
+
+versions:
+  - version: "0.1.2"
+    status: "development-tier"
+    notes: "Initial scaffolding build during methodology development."
+  - version: "0.2.0"
+    status: "development-tier"
+    notes: "Development-phase iteration."
+  - version: "0.3.0"
+    status: "development-tier"
+    notes: "Development-phase iteration."
+  - version: "0.4.0"
+    status: "development-tier"
+    notes: "Final pre-engagement-ready development build. Last version before audit_trail and model_validation domains stabilized."
+  - version: "0.5.0"
+    status: "engagement-ready"
+    notes: "First engagement-ready release. Data Quality trust domain activation; 26 invariants, 29 failure modes, 73 references."

@@ -51,6 +51,10 @@ class ControlPlaneRoot:
         return self.methodology_releases_dir / "changelog.md"
 
     @property
+    def versions_manifest_path(self) -> Path:
+        return self.methodology_releases_dir / "versions.yaml"
+
+    @property
     def overlay_registry_path(self) -> Path:
         return self.methodology_releases_dir / "overlay_registry.md"
 
